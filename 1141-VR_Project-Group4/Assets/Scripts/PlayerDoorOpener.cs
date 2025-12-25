@@ -28,7 +28,9 @@ public class PlayerDoorOpener : MonoBehaviour
             closestSqr = float.MaxValue;
             for (int i = 0; i < hits.Length; i++)
             {
-                if (!hits[i].CompareTag("door")) continue;
+                // 支持 door、door1、door2 标签
+                if (!(hits[i].CompareTag("door") || hits[i].CompareTag("door1") || hits[i].CompareTag("door2"))) continue;
+                // 优先寻找同层或父层的Door组件
                 Door d = hits[i].GetComponentInParent<Door>();
                 if (d == null) d = hits[i].GetComponent<Door>();
                 if (d == null) continue;
@@ -45,22 +47,35 @@ public class PlayerDoorOpener : MonoBehaviour
         {
             FindClosestDoor();
             if (closestDoor == null) return;
-            if (autoDirectionOnInteract) closestDoor.ToggleAuto(origin);
-            else closestDoor.Toggle();
+            // 若是上锁门，走 TryToggle；否则正常 Toggle
+            LockedDoor maybeLocked = closestDoor.GetComponent<LockedDoor>();
+            if (maybeLocked != null)
+            {
+                maybeLocked.TryToggle();
+            }
+            else
+            {
+                if (autoDirectionOnInteract) closestDoor.ToggleAuto(origin);
+                else closestDoor.Toggle();
+            }
         }
 
         if (Input.GetKeyDown(openOutwardKey))
         {
             FindClosestDoor();
             if (closestDoor == null) return;
-            closestDoor.ToggleWithDirection(Door.SwingDirection.Outward, origin);
+            LockedDoor maybeLocked = closestDoor.GetComponent<LockedDoor>();
+            if (maybeLocked != null) maybeLocked.TryToggle();
+            else closestDoor.ToggleWithDirection(Door.SwingDirection.Outward, origin);
         }
 
         if (Input.GetKeyDown(openInwardKey))
         {
             FindClosestDoor();
             if (closestDoor == null) return;
-            closestDoor.ToggleWithDirection(Door.SwingDirection.Inward, origin);
+            LockedDoor maybeLocked = closestDoor.GetComponent<LockedDoor>();
+            if (maybeLocked != null) maybeLocked.TryToggle();
+            else closestDoor.ToggleWithDirection(Door.SwingDirection.Inward, origin);
         }
     }
 

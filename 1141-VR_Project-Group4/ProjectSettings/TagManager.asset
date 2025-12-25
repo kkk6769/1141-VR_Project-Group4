@@ -12,6 +12,12 @@ TagManager:
   - tp-to-lv1
   - tp-to-lv2
   - tp-to-endroom
+  - lv1-key
+  - lv2-key-1
+  - lv2-key-2
+  - lv1-look
+  - lv2-look-1
+  - lv2-look-2
   layers:
   - Default
   - TransparentFX
