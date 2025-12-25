@@ -1,4 +1,7 @@
 using UnityEngine;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 // 一个“最简单、稳定无回弹”的玩家控制器：
 // - 使用 CharacterController 进行碰撞（非刚体），几乎没有物理回弹感
@@ -23,10 +26,23 @@ public class SimpleCCPlayer : MonoBehaviour
     [Header("References")]
     [Tooltip("玩家相机(建议为玩家物体子节点)。若为空，将尝试 Camera.main")] public Camera playerCamera;
 
+    [Header("Footsteps")]
+    [Tooltip("是否启用脚步音效")] public bool enableFootsteps = true;
+    [Tooltip("脚步音源。若为空，会自动创建并挂在玩家上")] public AudioSource footstepSource;
+    [Tooltip("脚步音频片段集合，随机播放其中之一")] public AudioClip[] footstepClips;
+    [Tooltip("启动时自动从 Resources 加载单个脚步音 clip（用于无需手动指定的场景）")] public bool autoLoadFromResources = true;
+    [Tooltip("Resources 下的路径（不含扩展名），例如 'sound/walk' 表示 Assets/Resources/sound/walk.wav")] public string resourcesClipPath = "sound/walk";
+    [Tooltip("行走每秒脚步次数（步频）")] public float walkStepRate = 1.8f;
+    [Tooltip("奔跑每秒脚步次数（步频）")] public float runStepRate = 2.6f;
+    [Range(0f, 1f)] public float footstepVolume = 0.9f;
+    [Tooltip("触发脚步音效所需的最小水平速度")] public float minVelocityToStep = 0.1f;
+    [Tooltip("脚步音为3D（1）或2D（0）。建议3D用于VR/第一人称")] [Range(0f,1f)] public float spatialBlend = 1f;
+
     CharacterController controller;
     float yaw;
     float pitch;
     float verticalVelocity; // y 方向速度（重力）
+    float stepTimer; // 累计计时以触发脚步
 
     void Awake()
     {
@@ -44,11 +60,24 @@ public class SimpleCCPlayer : MonoBehaviour
             else playerCamera = GetComponentInChildren<Camera>();
         }
 
+        // 脚步音源自动创建
+        if (enableFootsteps && footstepSource == null)
+        {
+            footstepSource = gameObject.AddComponent<AudioSource>();
+            footstepSource.playOnAwake = false;
+            footstepSource.loop = false;
+            footstepSource.spatialBlend = spatialBlend;
+            footstepSource.volume = footstepVolume;
+        }
+
         yaw = transform.eulerAngles.y;
         if (playerCamera != null)
         {
             pitch = NormalizeAngle(playerCamera.transform.localEulerAngles.x);
         }
+
+        // 自动加载脚步音
+        TryAutoLoadFootstepClip();
 
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
@@ -92,6 +121,12 @@ public class SimpleCCPlayer : MonoBehaviour
 
         Vector3 velocity = moveXZ + Vector3.up * verticalVelocity;
         controller.Move(velocity * Time.deltaTime);
+
+        // 脚步音效
+        if (enableFootsteps)
+        {
+            HandleFootsteps(moveXZ, speed);
+        }
     }
 
     void OnControllerColliderHit(ControllerColliderHit hit)
@@ -112,5 +147,73 @@ public class SimpleCCPlayer : MonoBehaviour
     {
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
+    }
+
+    void HandleFootsteps(Vector3 moveXZ, float speed)
+    {
+        // 仅在接地且有水平移动时触发
+        float horizSpeed = new Vector3(moveXZ.x, 0f, moveXZ.z).magnitude;
+        bool moving = horizSpeed >= minVelocityToStep - 1e-3f;
+        if (!controller.isGrounded || !moving || footstepClips == null || footstepClips.Length == 0 || footstepSource == null)
+        {
+            // 无移动或无资源时重置计时以避免恢复时瞬间连播
+            stepTimer = 0f;
+            return;
+        }
+
+        // 步频：行走/奔跑每秒次数
+        float rate = (Mathf.Approximately(speed, runSpeed) ? runStepRate : walkStepRate);
+        float interval = rate > 0f ? (1f / rate) : 0.5f; // 安全缺省
+
+        stepTimer += Time.deltaTime;
+        if (stepTimer >= interval)
+        {
+            stepTimer = 0f;
+            PlayRandomFootstep();
+        }
+    }
+
+    void PlayRandomFootstep()
+    {
+        if (footstepSource == null) return;
+        AudioClip clip = null;
+        if (footstepClips != null && footstepClips.Length > 0)
+        {
+            int idx = Random.Range(0, footstepClips.Length);
+            clip = footstepClips[idx];
+        }
+        if (clip == null) return;
+        if (clip == null) return;
+        footstepSource.volume = footstepVolume;
+        footstepSource.spatialBlend = spatialBlend;
+        footstepSource.PlayOneShot(clip);
+    }
+
+    void TryAutoLoadFootstepClip()
+    {
+        if (!enableFootsteps) return;
+        bool hasClips = footstepClips != null && footstepClips.Length > 0 && footstepClips[0] != null;
+        if (hasClips) return;
+
+        // 优先从 Resources 加载（可在打包后正常工作）
+        if (autoLoadFromResources && !string.IsNullOrEmpty(resourcesClipPath))
+        {
+            var resClip = Resources.Load<AudioClip>(resourcesClipPath);
+            if (resClip != null)
+            {
+                footstepClips = new AudioClip[] { resClip };
+                return;
+            }
+        }
+
+#if UNITY_EDITOR
+        // 编辑器回退：支持直接从 Assets/sound/walk.wav 加载（仅在编辑器生效）
+        string editorPath = "Assets/sound/walk.wav";
+        var editorClip = AssetDatabase.LoadAssetAtPath<AudioClip>(editorPath);
+        if (editorClip != null)
+        {
+            footstepClips = new AudioClip[] { editorClip };
+        }
+#endif
     }
 }
