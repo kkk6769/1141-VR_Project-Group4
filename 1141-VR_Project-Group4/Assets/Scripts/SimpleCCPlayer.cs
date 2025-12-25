@@ -14,6 +14,12 @@ public class SimpleCCPlayer : MonoBehaviour
     public float moveSpeed = 4.5f;
     public float runSpeed = 7.5f;
 
+    [Header("Input")]
+    [Tooltip("仅使用键盘输入(WSAD)，避免旧输入系统将手柄/VR控制器轴混入导致漂移")] public bool keyboardOnlyInput = true;
+    [Tooltip("对模拟轴输入应用死区，解决手柄或控制器轻微漂移")] public float axisDeadzone = 0.2f;
+    [Tooltip("水平轴名称(旧输入系统)")] public string horizontalAxis = "Horizontal";
+    [Tooltip("垂直轴名称(旧输入系统)")] public string verticalAxis = "Vertical";
+
     [Header("Mouse Look")]
     public float mouseSensitivity = 1.2f;
     public bool invertY = false;
@@ -100,9 +106,8 @@ public class SimpleCCPlayer : MonoBehaviour
         }
 
         // 移动输入（本地XZ）
-        float ix = Input.GetAxisRaw("Horizontal");
-        float iz = Input.GetAxisRaw("Vertical");
-        Vector3 input = new Vector3(ix, 0f, iz);
+        Vector2 moveInput = GetMoveInput();
+        Vector3 input = new Vector3(moveInput.x, 0f, moveInput.y);
         input = Vector3.ClampMagnitude(input, 1f);
 
         float speed = Input.GetKey(KeyCode.LeftShift) ? runSpeed : moveSpeed;
@@ -147,6 +152,33 @@ public class SimpleCCPlayer : MonoBehaviour
     {
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
+    }
+
+    Vector2 GetMoveInput()
+    {
+        if (keyboardOnlyInput)
+        {
+            float x = 0f;
+            float y = 0f;
+            if (Input.GetKey(KeyCode.A)) x -= 1f;
+            if (Input.GetKey(KeyCode.D)) x += 1f;
+            if (Input.GetKey(KeyCode.S)) y -= 1f;
+            if (Input.GetKey(KeyCode.W)) y += 1f;
+            return new Vector2(x, y);
+        }
+        else
+        {
+            float ix = Input.GetAxisRaw(horizontalAxis);
+            float iz = Input.GetAxisRaw(verticalAxis);
+            ix = ApplyDeadzone(ix, axisDeadzone);
+            iz = ApplyDeadzone(iz, axisDeadzone);
+            return new Vector2(ix, iz);
+        }
+    }
+
+    float ApplyDeadzone(float v, float dz)
+    {
+        return Mathf.Abs(v) < dz ? 0f : v;
     }
 
     void HandleFootsteps(Vector3 moveXZ, float speed)

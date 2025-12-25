@@ -5,6 +5,13 @@ TagManager:
   serializedVersion: 2
   tags:
   - door
+  - key1
+  - key2
+  - door1
+  - door2
+  - tp-to-lv1
+  - tp-to-lv2
+  - tp-to-endroom
   layers:
   - Default
   - TransparentFX
